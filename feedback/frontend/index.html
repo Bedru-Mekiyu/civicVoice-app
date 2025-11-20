@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+
+    <!-- Primary Meta Tags -->
+    <title>CivicVoice Et - Ethiopian Civic Engagement Platform</title>
+    <meta
+      name="title"
+      content="CivicVoice Et - Ethiopian Civic Engagement Platform"
+    />
+    <meta
+      name="description"
+      content="Your comprehensive government analytics platform that transforms complex civic data into actionable insights. Empower yourself with real-time government transparency, policy tracking, and citizen engagement tools."
+    />
+    <meta
+      name="keywords"
+      content="civic engagement, government feedback, citizen participation, Ethiopia, CivicVoice, public services, government transparency"
+    />
+    <meta name="author" content="CivicVoice Et Team" />
+    <meta name="robots" content="index, follow" />
+    <meta name="language" content="English" />
+
+    <!-- Theme and Design -->
+    <meta name="theme-color" content="#16a34a" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="CivicVoice Et" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta
+      property="og:title"
+      content="CivicVoice Et - Ethiopian Civic Engagement Platform"
+    />
+    <meta
+      property="og:description"
+      content="Your comprehensive government analytics platform that transforms complex civic data into actionable insights. Empower yourself with real-time government transparency, policy tracking, and citizen engagement tools."
+    />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:url" content="https://civicvoice.et" />
+    <meta property="og:site_name" content="CivicVoice Et" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="am_ET" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta
+      property="twitter:title"
+      content="CivicVoice Et - Ethiopian Civic Engagement Platform"
+    />
+    <meta
+      property="twitter:description"
+      content="Your comprehensive government analytics platform that transforms complex civic data into actionable insights."
+    />
+    <meta property="twitter:image" content="/og-image.png" />
+    <meta property="twitter:site" content="@civicvoiceet" />
+    <meta property="twitter:creator" content="@civicvoiceet" />
+
+    <!-- Favicons and App Icons
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" /> -->
+    <!-- <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" /> -->
+    <!-- <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" /> -->
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#16a34a" />
+
+    <!-- PWA Tags -->
+    <meta name="application-name" content="CivicVoice Et" />
+    <meta name="msapplication-TileColor" content="#16a34a" />
+    <meta name="msapplication-config" content="/browserconfig.xml" />
+
+    <!-- Preconnect to external domains -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Critical CSS - Ethiopian fonts -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&family=Noto+Sans+Ethiopic:wght@100;200;300;400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Security -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="X-Frame-Options" content="DENY" />
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
+    <meta
+      http-equiv="Referrer-Policy"
+      content="strict-origin-when-cross-origin"
+    />
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "CivicVoice Et",
+        "alternateName": "Ethiopian Civic Engagement Platform",
+        "url": "https://civicvoice.et",
+        "description": "Your comprehensive government analytics platform that transforms complex civic data into actionable insights.",
+        "applicationCategory": "GovernmentApplication",
+        "operatingSystem": "Web Browser",
+        "author": {
+          "@type": "Organization",
+          "name": "CivicVoice Et Team"
+        },
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "screenshot": "/screenshot-desktop.png",
+        "softwareVersion": "1.0.0",
+        "datePublished": "2024-01-01",
+        "dateModified": "2024-01-01",
+        "inLanguage": ["en", "am"],
+        "featureList": [
+          "Government Service Feedback",
+          "Real-time Analytics",
+          "Multi-language Support",
+          "Administrative Dashboard",
+          "Citizen Engagement Tools"
+        ]
+      }
+    </script>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Service Worker Registration -->
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker
+            .register("/sw.js")
+            .then((registration) => {
+              console.log("SW registered: ", registration);
+            })
+            .catch((registrationError) => {
+              console.log("SW registration failed: ", registrationError);
+            });
+        });
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,50 @@
+/* ==================== AMHARIC TEXT RENDERING FIX ==================== */
+/* Ensures proper rendering of Amharic text while maintaining layout integrity */
+
+@font-face {
+  font-family: 'Noto Sans Ethiopic';
+  src: url('https://fonts.googleapis.com/css2?family=Noto+Sans+Ethiopic:wght@100;200;300;400;500;600;700;800;900&display=swap');
+  font-display: swap;
+}
+
+[lang="am"] {
+  font-family: 'Noto Sans Ethiopic', 'Nyala', 'Abyssinica SIL', system-ui, -apple-system, sans-serif;
+}
+
+/* Ethiopic text specific fixes */
+.ethiopic-text {
+  font-feature-settings: 'liga' 1, 'clig' 1, 'kern' 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure proper text direction for mixed content */
+.mixed-content {
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+
+/* Fix for form inputs with Amharic */
+input[lang="am"], 
+textarea[lang="am"], 
+select[lang="am"] {
+  font-family: 'Noto Sans Ethiopic', system-ui, sans-serif;
+  direction: ltr;
+  text-align: left;
+}
+
+/* Preserve layout integrity */
+.layout-container {
+  direction: ltr !important;
+}
+
+.layout-container * {
+  box-sizing: border-box;
+}
+
+/* Button text alignment fix */
+button[lang="am"] {
+  text-align: center;
+  direction: ltr;
+}
