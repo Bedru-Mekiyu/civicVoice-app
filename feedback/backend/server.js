@@ -9,44 +9,34 @@ require('dotenv').config();
 
 const app = express();
 
-// ==================== CREATE UPLOADS FOLDER ====================
+// ==================== UPLOADS FOLDER ====================
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
-  console.log('Uploads folder created');
 }
 
-// ==================== CORS – PERFECT & SECURE ====================
+// ==================== CORS (PRODUCTION SAFE) ====================
 const allowedOrigins = [
   'https://civicvoiceapp.onrender.com',
   'https://civicvoice-app-1.onrender.com',
   'https://civicvoiceapp-frontend.onrender.com',
   'http://localhost:3000',
   'http://localhost:5173',
-  'http://localhost:8080',
   'http://localhost:4173',
-  process.env.FRONTEND_ORIGIN, // optional extra from .env
+  'http://localhost:8080',
+  process.env.FRONTEND_ORIGIN,
 ].filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (Postman, mobile apps, curl, Render health checks)
       if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
 
-      // If origin is in whitelist → allow
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      // PRODUCTION: Block unknown origins
       if (process.env.NODE_ENV === 'production') {
         console.warn(`CORS BLOCKED: ${origin}`);
         return callback(new Error('Not allowed by CORS'), false);
       }
-
-      // DEVELOPMENT: Allow everything else
-      console.warn(`CORS allowed in dev: ${origin}`);
       return callback(null, true);
     },
     credentials: true,
@@ -54,27 +44,24 @@ app.use(
   })
 );
 
-// ==================== MONGO CONNECTION – BULLETPROOF ====================
+// ==================== MONGO CONNECTION (FIXED!) ====================
 const mongoUri =
   process.env.MONGODB_URI ||
-  process.env.MONGO_URI ||
-  'mongodb+srv://bedrumekiyu39_db_user:74ZzXxFub8dsK5gT@cluster0.xqpaqrm.mongodb.net/civicvoice?retryWrites=true&w=majority&appName=civicvoice';
+  'mongodb+srv://bedrumekiyu39_db_user:74ZzXxFub8dsK5gT@cluster0.xqpaqrm.mongodb.net/civicvoice?retryWrites=true&w=majority';
 
 mongoose.set('strictQuery', false);
 
 mongoose
   .connect(mongoUri, {
-    maxPoolSize: 10,
-    serverSelectionTimeoutMS: 8000,
-    socketTimeoutMS: 45000,
-    bufferMaxEntries: 0,
-    bufferCommands: false,
+    maxPoolSize: 10,                  // Good
+    serverSelectionTimeoutMS: 8000,   // Good
+    socketTimeoutMS: 45000,           // Good
+    // REMOVED: bufferMaxEntries & bufferCommands → they were removed in MongoDB driver 4.0+
   })
-  .then(() => console.log('MongoDB connected'))
+  .then(() => console.log('MongoDB connected successfully'))
   .catch((err) => console.error('MongoDB connection error:', err.message));
 
-// Reconnection handling
-mongoose.connection.on('disconnected', () => console.warn('MongoDB disconnected – reconnecting...'));
+mongoose.connection.on('disconnected', () => console.warn('MongoDB disconnected'));
 mongoose.connection.on('reconnected', () => console.log('MongoDB reconnected'));
 mongoose.connection.on('error', (err) => console.error('MongoDB error:', err));
 
@@ -94,19 +81,14 @@ app.use('/api/dashboard', require('./routes/dashboard'));
 app.get('/health', (req, res) => {
   res.json({
     status: 'OK',
-    message: 'CivicVoice API is healthy',
+    message: 'CivicVoice API is running!',
     timestamp: new Date().toISOString(),
     mongo: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    uptime: process.uptime(),
   });
 });
 
 app.get('/', (req, res) => {
-  res.json({
-    message: 'Welcome to CivicVoice API',
-    docs: '/health',
-    version: '1.0.0',
-  });
+  res.json({ message: 'Welcome to CivicVoice API', docs: '/health' });
 });
 
 // ==================== 404 & ERROR HANDLING ====================
@@ -115,20 +97,9 @@ app.use('*', (req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error('Unhandled Error:', err);
-
-  if (err.name === 'MulterError') {
-    return res.status(400).json({ success: false, message: 'File upload error', error: err.message });
-  }
-
-  if (err.name === 'ValidationError') {
-    const errors = Object.values(err.errors).map((e) => e.message);
-    return res.status(400).json({ success: false, message: 'Validation failed', errors });
-  }
-
+  console.error('Unhandled error:', err);
   const status = err.status || 500;
   const message = process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message;
-
   res.status(status).json({ success: false, message });
 });
 
@@ -137,27 +108,23 @@ const PORT = process.env.PORT || 10000;
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Health: https://civicvoiceapp.onrender.com/health`);
+  console.log(`Health check: https://civicvoiceapp.onrender.com/health`);
 });
 
 // ==================== RENDER KEEP-ALIVE (FREE TIER) ====================
 if (process.env.NODE_ENV === 'production') {
-  const keepAliveUrl = `https://${process.env.RENDER_EXTERNAL_HOSTNAME || 'civicvoiceapp.onrender.com'}`;
-
+  const url = `https://${process.env.RENDER_EXTERNAL_HOSTNAME || 'civicvoiceapp.onrender.com'}`;
   setInterval(() => {
-    fetch(`${keepAliveUrl}/health`)
-      .then(() => console.log('Self-ping successful – staying awake'))
-      .catch((err) => console.warn('Self-ping failed:', err.message));
-  }, 12 * 60 * 1000); // Every 12 minutes (safe under Render's 15-min limit)
+    fetch(`${url}/health`)
+      .then(() => console.log('Keep-alive ping sent'))
+      .catch(() => {});
+  }, 12 * 60 * 1000); // every 12 mins
 }
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received – shutting down gracefully');
+  console.log('SIGTERM received – shutting down...');
   server.close(() => {
-    mongoose.connection.close(false, () => {
-      console.log('MongoDB connection closed');
-      process.exit(0);
-    });
+    mongoose.connection.close(false, () => process.exit(0));
   });
 });
