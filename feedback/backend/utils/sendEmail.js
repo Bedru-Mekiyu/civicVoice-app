@@ -1,12 +1,11 @@
-// backend/utils/sendEmail.js - FIXED & PRODUCTION READY
+// backend/utils/sendEmail.js ← FINAL WORKING VERSION
 const { Resend } = require('resend');
-
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 module.exports = async ({ to, subject, text, html }) => {
   try {
     const { data, error } = await resend.emails.send({
-      from: process.env.FROM_EMAIL || 'CivicVoice <no-reply@civicvoice.et>',
+      from: 'CivicVoice <onboarding@resend.dev>',  // ← THIS IS VERIFIED BY RESEND
       to,
       subject,
       text: text || '',
@@ -14,14 +13,14 @@ module.exports = async ({ to, subject, text, html }) => {
     });
 
     if (error) {
-      console.error('Resend email error:', error);
-      throw new Error('Failed to send email');
+      console.error('Resend error:', error);
+      throw error;
     }
 
-    console.log('OTP Email sent successfully to:', to, 'ID:', data?.id);
+    console.log('OTP sent successfully →', data.id);
     return data;
   } catch (err) {
-    console.error('Email sending failed:', err.message);
-    throw new Error('Email service unavailable');
+    console.error('Email failed:', err);
+    throw err;
   }
 };
