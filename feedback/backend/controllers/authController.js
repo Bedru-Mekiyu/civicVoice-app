@@ -3,7 +3,10 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const sendEmail = require('../utils/sendEmail');
+const { Resend } = require('resend');
+
+// Initialize Resend with API key
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Helper to generate JWT
 const generateToken = (user) => {
@@ -45,7 +48,8 @@ exports.register = async (req, res) => {
     await user.save();
 
     try {
-      await sendEmail({
+      await resend.emails.send({
+        from: 'CivicVoice <onboarding@resend.dev>',
         to: email,
         subject: 'Your CivicVoice OTP Code',
         text: `Hello ${name},\n\nYour one-time verification code is ${otp}. It will expire once you activate your account.\n\nIf you did not sign up, please ignore this message.`,
@@ -67,28 +71,12 @@ exports.signIn = async (req, res) => {
     const { email, password } = req.body;
 
     const user = await User.findOne({ email });
-    const validPassword = user && (await bcrypt.compare(password, user.password));
-    if (!user || !validPassword) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+    if (!user || !await user.matchPassword(password)) {
+      return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // Allow unverified login only if explicitly enabled (development convenience)
-    const allowUnverified = process.env.ALLOW_UNVERIFIED_LOGIN === 'true';
-    if (!user.isVerified && !allowUnverified) {
-      if (!user.otp) {
-        user.otp = Math.floor(100000 + Math.random() * 900000).toString();
-        await user.save();
-      }
-      try {
-        await sendEmail({
-          to: email,
-          subject: 'Your CivicVoice OTP Code',
-          text: `Hello ${user.name},\n\nTo finish signing in, enter this verification code: ${user.otp}.\n\nIf you did not attempt to sign in, please secure your account.`,
-        });
-      } catch (emailErr) {
-        console.error(`Failed to resend OTP email to ${email}:`, emailErr.message);
-      }
-      return res.status(403).json({ message: 'Account not verified. OTP resent to your email.' });
+    if (!user.isVerified) {
+      return res.status(403).json({ message: 'Account not verified. Please verify your email first.' });
     }
 
     const token = generateToken(user);
@@ -104,7 +92,7 @@ exports.signIn = async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(500).json({ message: 'Login error', error: err.message });
+    res.status(500).json({ message: 'Login failed', error: err.message });
   }
 };
 
@@ -113,26 +101,22 @@ exports.verifyOTP = async (req, res) => {
     const { email, otp } = req.body;
 
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: 'User not found' });
-
-    if (user.isVerified)
-      return res.status(400).json({ message: 'User already verified' });
+    if (!user) {
+      return res.status(400).json({ message: 'User not found' });
+    }
 
     if (user.otp !== otp) {
-      console.log(
-        `OTP verification failed for ${email}: Expected ${user.otp}, Received ${otp}`
-      );
       return res.status(400).json({ message: 'Invalid OTP' });
     }
 
     user.isVerified = true;
-    user.otp = undefined;
+    user.otp = undefined; // Clear OTP after verification
     await user.save();
 
     const token = generateToken(user);
 
     res.json({
-      message: 'Account activated',
+      message: 'Account verified successfully',
       token,
       user: {
         id: user._id,
@@ -143,14 +127,12 @@ exports.verifyOTP = async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(500).json({ message: 'Activation error', error: err.message });
+    res.status(500).json({ message: 'OTP verification failed', error: err.message });
   }
 };
 
 exports.getMe = async (req, res) => {
   try {
-    if (!req.user) return res.status(401).json({ message: 'Not authorized' });
-
     res.json({
       id: req.user._id,
       name: req.user.name,
