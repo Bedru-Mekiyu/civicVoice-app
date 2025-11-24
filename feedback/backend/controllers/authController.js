@@ -1,10 +1,12 @@
-'use strict';
+"use strict";
 
-const User = require('../models/User');
-const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
+const User = require("../models/User");
+const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
 
-// Generate JWT Token
+// ---------------------------
+// JWT TOKEN GENERATOR
+// ---------------------------
 const generateToken = (user) => {
   return jwt.sign(
     {
@@ -16,27 +18,29 @@ const generateToken = (user) => {
       avatar: user.avatar || null,
     },
     process.env.JWT_SECRET,
-    { expiresIn: '24h' }
+    { expiresIn: "24h" }
   );
 };
 
-// Send OTP using Gmail SMTP via Nodemailer
+// ---------------------------
+// GMAIL SMTP — SEND OTP EMAIL
+// ---------------------------
 const sendEmail = async (to, name, otp) => {
   try {
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: process.env.SMTP_PORT,
-      secure: false, // Gmail on port 587 = false
+      host: process.env.SMTP_HOST, // smtp.gmail.com
+      port: 465,
+      secure: true, // IMPORTANT for port 465
       auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
+        user: process.env.SMTP_USER, // Gmail
+        pass: process.env.SMTP_PASS, // Google App Password
       },
     });
 
     await transporter.sendMail({
       from: `"CivicVoice" <${process.env.SMTP_USER}>`,
       to,
-      subject: 'Your CivicVoice Verification Code',
+      subject: "Your CivicVoice Verification Code",
       html: `
         <div style="font-family:Arial;text-align:center;padding:40px;background:#f0fdf4;">
           <h2 style="color:#10b981;">Welcome to CivicVoice!</h2>
@@ -47,20 +51,22 @@ const sendEmail = async (to, name, otp) => {
       `,
     });
 
-    console.log('GMAIL SMTP SUCCESS — OTP sent to:', to);
+    console.log("📧 OTP sent via Gmail to:", to);
   } catch (error) {
-    console.error('GMAIL SMTP FAILED:', error.message);
+    console.error("❌ GMAIL SMTP ERROR:", error);
   }
 };
 
-// REGISTER USER
+// ---------------------------
+// REGISTER USER + SEND OTP
+// ---------------------------
 exports.register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // Check if email already exists
+    // Check duplicate
     if (await User.findOne({ email })) {
-      return res.status(400).json({ message: 'Email already registered' });
+      return res.status(400).json({ message: "Email already registered" });
     }
 
     // Generate OTP
@@ -78,27 +84,135 @@ exports.register = async (req, res) => {
 
     await user.save();
 
-    // Send OTP via Gmail SMTP
+    // Send OTP email
     await sendEmail(email, name, otp);
 
     res.status(201).json({
-      message: 'Registration successful! Check your email for the OTP.',
+      message: "Registration successful! Check your email for the OTP.",
       email,
     });
   } catch (err) {
-    console.error('Register error:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("Register Error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
-// Other functions (unchanged)
-exports.signIn = async (req, res) => { /* your code */ };
-exports.verifyOTP = async (req, res) => { /* your code */ };
-exports.getMe = async (req, res) => { /* your code */ };
-exports.logout = async (req, res) => { res.json({ message: 'Logged out' }); };
-exports.updateAvatar = async (req, res) => { /* your code */ };
-exports.protect = async (req, res, next) => { /* your code */ };
+// ---------------------------
+// VERIFY OTP
+// ---------------------------
+exports.verifyOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    const user = await User.findOne({ email });
+
+    if (!user) return res.status(400).json({ message: "User not found" });
+    if (user.otp !== otp) return res.status(400).json({ message: "Invalid OTP" });
+
+    user.isVerified = true;
+    user.otp = null;
+    await user.save();
+
+    const token = generateToken(user);
+
+    res.json({
+      message: "OTP verified successfully",
+      token,
+      user,
+    });
+  } catch (err) {
+    console.error("Verify OTP Error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ---------------------------
+// SIGN IN
+// ---------------------------
+exports.signIn = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await User.findOne({ email }).select("+password");
+
+    if (!user) return res.status(400).json({ message: "Invalid credentials" });
+
+    const match = await user.comparePassword(password);
+    if (!match) return res.status(400).json({ message: "Invalid credentials" });
+
+    if (!user.isVerified) {
+      return res.status(403).json({ message: "Account not verified" });
+    }
+
+    const token = generateToken(user);
+
+    res.json({
+      message: "Signed in successfully",
+      token,
+      user,
+    });
+  } catch (err) {
+    console.error("Sign-in Error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ---------------------------
+// PROTECT ROUTES (JWT AUTH)
+// ---------------------------
+exports.protect = async (req, res, next) => {
+  try {
+    let token = req.headers.authorization?.split(" ")[1];
+
+    if (!token) return res.status(401).json({ message: "Not authorized" });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+
+    if (!user) return res.status(401).json({ message: "User not found" });
+
+    req.user = user;
+    next();
+  } catch (err) {
+    res.status(401).json({ message: "Invalid or expired token" });
+  }
+};
+
+// ---------------------------
+// REQUIRE ADMIN
+// ---------------------------
 exports.requireAdmin = (req, res, next) => {
-  if (!req.user?.isAdmin) return res.status(403).json({ message: 'Admin only' });
+  if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
   next();
+};
+
+// ---------------------------
+// GET MY PROFILE
+// ---------------------------
+exports.getMe = async (req, res) => {
+  res.json(req.user);
+};
+
+// ---------------------------
+// UPDATE AVATAR
+// ---------------------------
+exports.updateAvatar = async (req, res) => {
+  try {
+    const { avatar } = req.body;
+
+    const user = await User.findById(req.user._id);
+    user.avatar = avatar;
+    await user.save();
+
+    res.json({ message: "Avatar updated", avatar });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ---------------------------
+// LOGOUT
+// ---------------------------
+exports.logout = (req, res) => {
+  res.json({ message: "Logged out" });
 };
