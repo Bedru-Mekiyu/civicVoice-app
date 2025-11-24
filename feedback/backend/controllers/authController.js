@@ -2,7 +2,7 @@
 
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
-const axios = require('axios');  // For HTTP API calls to Brevo
+const axios = require('axios');
 
 // Generate JWT Token
 const generateToken = (user) => {
@@ -20,8 +20,8 @@ const generateToken = (user) => {
   );
 };
 
-// Send OTP via Brevo HTTP API (bypasses SMTP timeouts)
-const sendBrevoEmail = async (to, subject, text, html) => {
+// Send OTP via Brevo HTTP API v3 (exact official format)
+const sendBrevoEmail = async (to, name, otp) => {
   try {
     const response = await axios.post(
       'https://api.brevo.com/v3/smtp/email',
@@ -30,24 +30,38 @@ const sendBrevoEmail = async (to, subject, text, html) => {
           name: 'CivicVoice',
           email: process.env.FROM_EMAIL || 'no-reply@civicvoice.et',
         },
-        to: [{ email: to }],
-        subject: subject,
-        text: text,
-        html: html,
+        to: [
+          {
+            email: to,
+            name: name,
+          },
+        ],
+        subject: 'Your CivicVoice Verification Code',
+        textContent: `Hello ${name},\n\nYour verification code is: ${otp}\n\nIt expires in 10 minutes.\n\nIf you didn't sign up, ignore this email.`,
+        htmlContent: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; background: #f8fafc; text-align: center; border-radius: 12px;">
+            <h2 style="color: #10b981;">Welcome to CivicVoice!</h2>
+            <p style="font-size: 18px; color: #475569;">Your verification code is</p>
+            <h1 style="font-size: 52px; letter-spacing: 15px; color: #1e293b; margin: 20px 0;"><b>${otp}</b></h1>
+            <p style="color: #64748b;">Valid for 10 minutes</p>
+          </div>
+        `,
       },
       {
         headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'api-key': process.env.BREVO_API_KEY,  // Your long key
+          'accept': 'application/json',
+          'api-key': process.env.BREVO_API_KEY,  // ← EXACT FORMAT: 'api-key' header
+          'content-type': 'application/json',
         },
-        timeout: 10000,  // 10 second timeout
+        timeout: 10000,
       }
     );
 
     if (response.status === 201) {
-      console.log('BREVO HTTP API SUCCESS: OTP sent to', to);
+      console.log('BREVO API SUCCESS: OTP sent to', to);
       return true;
+    } else {
+      throw new Error(`Brevo API returned ${response.status}: ${response.data}`);
     }
   } catch (error) {
     console.error('BREVO API FAILED:', error.response?.data?.message || error.message);
@@ -68,7 +82,7 @@ exports.register = async (req, res) => {
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Create user (hash password in User model pre-save)
+    // Create user
     const user = new User({
       name,
       email,
@@ -82,19 +96,7 @@ exports.register = async (req, res) => {
 
     // Send OTP via Brevo HTTP API
     try {
-      await sendBrevoEmail(
-        email,
-        'Your CivicVoice Verification Code',
-        `Hello ${name},\n\nYour verification code is: ${otp}\n\nIt expires in 10 minutes.\n\nIf you didn't sign up, ignore this email.`,
-        `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; background: #f8fafc; text-align: center; border-radius: 12px;">
-            <h2 style="color: #10b981;">Welcome to CivicVoice!</h2>
-            <p style="font-size: 18px; color: #475569;">Your verification code is</p>
-            <h1 style="font-size: 52px; letter-spacing: 15px; color: #1e293b; margin: 20px 0;"><b>${otp}</b></h1>
-            <p style="color: #64748b;">Valid for 10 minutes</p>
-          </div>
-        `
-      );
+      await sendBrevoEmail(email, name, otp);
     } catch (emailErr) {
       console.error('BREVO EMAIL FAILED (non-blocking):', emailErr.message);
       // User is still created — email is optional
