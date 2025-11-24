@@ -2,8 +2,9 @@
 
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
-const axios = require('axios');
+const nodemailer = require('nodemailer');
 
+// Generate JWT Token
 const generateToken = (user) => {
   return jwt.sign(
     {
@@ -19,50 +20,53 @@ const generateToken = (user) => {
   );
 };
 
-const sendBrevoEmail = async (to, name, otp) => {
+// Send OTP using Gmail SMTP via Nodemailer
+const sendEmail = async (to, name, otp) => {
   try {
-    const response = await axios.post(
-      'https://api.brevo.com/v3/smtp/email',
-      {
-        sender: { name: 'CivicVoice', email: process.env.FROM_EMAIL },
-        to: [{ email: to, name: name }],
-        subject: 'Your CivicVoice Verification Code',
-        textContent: `Hello ${name},\n\nYour verification code is: ${otp}\n\nValid for 10 minutes.`,
-        htmlContent: `
-          <div style="font-family:Arial;text-align:center;padding:40px;background:#f0fdf4;">
-            <h2 style="color:#10b981;">Welcome to CivicVoice!</h2>
-            <p style="font-size:18px;">Your verification code is</p>
-            <h1 style="font-size:50px;letter-spacing:12px;color:#166534;"><b>${otp}</b></h1>
-            <p>Valid for 10 minutes</p>
-          </div>
-        `,
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: process.env.SMTP_PORT,
+      secure: false, // Gmail on port 587 = false
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
       },
-      {
-        headers: {
-          'accept': 'application/json',
-          'api-key': process.env.BREVO_API_KEY,   // ← THIS MUST BE THE xkeysib-… KEY
-          'content-type': 'application/json',
-        },
-        timeout: 15000,
-      }
-    );
+    });
 
-    console.log('BREVO API SUCCESS — OTP sent to:', to);
+    await transporter.sendMail({
+      from: `"CivicVoice" <${process.env.SMTP_USER}>`,
+      to,
+      subject: 'Your CivicVoice Verification Code',
+      html: `
+        <div style="font-family:Arial;text-align:center;padding:40px;background:#f0fdf4;">
+          <h2 style="color:#10b981;">Welcome to CivicVoice!</h2>
+          <p style="font-size:18px;">Your verification code is</p>
+          <h1 style="font-size:50px;letter-spacing:12px;color:#166534;"><b>${otp}</b></h1>
+          <p>Valid for 10 minutes</p>
+        </div>
+      `,
+    });
+
+    console.log('GMAIL SMTP SUCCESS — OTP sent to:', to);
   } catch (error) {
-    console.error('BREVO API FAILED:', error.response?.data || error.message);
+    console.error('GMAIL SMTP FAILED:', error.message);
   }
 };
 
+// REGISTER USER
 exports.register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
+    // Check if email already exists
     if (await User.findOne({ email })) {
       return res.status(400).json({ message: 'Email already registered' });
     }
 
+    // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
+    // Create user
     const user = new User({
       name,
       email,
@@ -74,7 +78,8 @@ exports.register = async (req, res) => {
 
     await user.save();
 
-    await sendBrevoEmail(email, name, otp);
+    // Send OTP via Gmail SMTP
+    await sendEmail(email, name, otp);
 
     res.status(201).json({
       message: 'Registration successful! Check your email for the OTP.',
@@ -86,7 +91,7 @@ exports.register = async (req, res) => {
   }
 };
 
-// (Keep all your other functions exactly as before — they are perfect)
+// Other functions (unchanged)
 exports.signIn = async (req, res) => { /* your code */ };
 exports.verifyOTP = async (req, res) => { /* your code */ };
 exports.getMe = async (req, res) => { /* your code */ };
