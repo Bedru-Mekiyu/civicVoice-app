@@ -1,19 +1,27 @@
-// backend/utils/sendEmail.js
-const nodemailer = require('nodemailer');
+// backend/utils/sendEmail.js - FIXED & PRODUCTION READY
+const { Resend } = require('resend');
 
-module.exports = async ({ to, subject, text }) => {
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-  await transporter.sendMail({
-    from: process.env.EMAIL_USER,
-    to,
-    subject,
-    text,
-  });
+module.exports = async ({ to, subject, text, html }) => {
+  try {
+    const { data, error } = await resend.emails.send({
+      from: process.env.FROM_EMAIL || 'CivicVoice <no-reply@civicvoice.et>',
+      to,
+      subject,
+      text: text || '',
+      html: html || `<p>${text}</p>`,
+    });
+
+    if (error) {
+      console.error('Resend email error:', error);
+      throw new Error('Failed to send email');
+    }
+
+    console.log('OTP Email sent successfully to:', to, 'ID:', data?.id);
+    return data;
+  } catch (err) {
+    console.error('Email sending failed:', err.message);
+    throw new Error('Email service unavailable');
+  }
 };
