@@ -2,24 +2,7 @@
 
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
-
-// BREVO — FINAL WORKING CONFIGURATION (November 2025)
-const transporter = nodemailer.createTransport({
-  host: 'smtp-relay.brevo.com',
-  port: 587,
-  secure: false, // TLS (not SSL)
-  auth: {
-    user: 'noreply@civicvoice.et',           // ← any fake email (Brevo ignores this)
-    pass: process.env.BREVO_SMTP_KEY,        // ← your long xsmtpsib-... key
-  },
-  tls: {
-    rejectUnauthorized: false                // ← THIS FIXES THE CONNECTION TIMEOUT
-  },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 10000
-});
+const axios = require('axios');  // For HTTP API calls to Brevo
 
 // Generate JWT Token
 const generateToken = (user) => {
@@ -37,6 +20,41 @@ const generateToken = (user) => {
   );
 };
 
+// Send OTP via Brevo HTTP API (bypasses SMTP timeouts)
+const sendBrevoEmail = async (to, subject, text, html) => {
+  try {
+    const response = await axios.post(
+      'https://api.brevo.com/v3/smtp/email',
+      {
+        sender: {
+          name: 'CivicVoice',
+          email: process.env.FROM_EMAIL || 'no-reply@civicvoice.et',
+        },
+        to: [{ email: to }],
+        subject: subject,
+        text: text,
+        html: html,
+      },
+      {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'api-key': process.env.BREVO_API_KEY,  // Your long key
+        },
+        timeout: 10000,  // 10 second timeout
+      }
+    );
+
+    if (response.status === 201) {
+      console.log('BREVO HTTP API SUCCESS: OTP sent to', to);
+      return true;
+    }
+  } catch (error) {
+    console.error('BREVO API FAILED:', error.response?.data?.message || error.message);
+    throw error;
+  }
+};
+
 // ==================== REGISTER ====================
 exports.register = async (req, res) => {
   try {
@@ -50,7 +68,7 @@ exports.register = async (req, res) => {
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Create user
+    // Create user (hash password in User model pre-save)
     const user = new User({
       name,
       email,
@@ -62,27 +80,24 @@ exports.register = async (req, res) => {
 
     await user.save();
 
-    // Send OTP Email via Brevo
+    // Send OTP via Brevo HTTP API
     try {
-      await transporter.sendMail({
-        from: process.env.FROM_EMAIL || 'CivicVoice <no-reply@civicvoice.et>',
-        to: email,
-        subject: 'Your CivicVoice Verification Code',
-        text: `Hello ${name},\n\nYour verification code is: ${otp}\n\nIt expires in 10 minutes.\n\nIf you didn't sign up, ignore this email.`,
-        html: `
+      await sendBrevoEmail(
+        email,
+        'Your CivicVoice Verification Code',
+        `Hello ${name},\n\nYour verification code is: ${otp}\n\nIt expires in 10 minutes.\n\nIf you didn't sign up, ignore this email.`,
+        `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; background: #f8fafc; text-align: center; border-radius: 12px;">
             <h2 style="color: #10b981;">Welcome to CivicVoice!</h2>
             <p style="font-size: 18px; color: #475569;">Your verification code is</p>
             <h1 style="font-size: 52px; letter-spacing: 15px; color: #1e293b; margin: 20px 0;"><b>${otp}</b></h1>
             <p style="color: #64748b;">Valid for 10 minutes</p>
           </div>
-        `,
-      });
-
-      console.log('BREVO OTP SUCCESSFULLY SENT TO:', email);
+        `
+      );
     } catch (emailErr) {
-      console.error('BREVO EMAIL FAILED:', emailErr.message);
-      // Don't block registration — user is still created
+      console.error('BREVO EMAIL FAILED (non-blocking):', emailErr.message);
+      // User is still created — email is optional
     }
 
     res.status(201).json({
@@ -153,7 +168,7 @@ exports.verifyOTP = async (req, res) => {
   }
 };
 
-// ==================== OTHER FUNCTIONS (UNTOUCHED & WORKING) ====================
+// ==================== GET CURRENT USER ====================
 exports.getMe = async (req, res) => {
   res.json({
     id: req.user._id,
@@ -164,12 +179,15 @@ exports.getMe = async (req, res) => {
   });
 };
 
+// ==================== LOGOUT ====================
 exports.logout = (req, res) => {
   res.json({ message: 'Logged out successfully' });
 };
 
+// ==================== UPDATE AVATAR ====================
 exports.updateAvatar = async (req, res) => {
   try {
+    if (!req.user) return res.status(401).json({ message: 'Not authorized' });
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
     const avatarPath = `/uploads/${req.file.filename}`;
@@ -177,7 +195,7 @@ exports.updateAvatar = async (req, res) => {
     await req.user.save();
 
     res.json({
-      message: 'Avatar updated',
+      message: 'Avatar updated successfully',
       avatar: avatarPath,
       token: generateToken(req.user),
       user: {
@@ -193,6 +211,7 @@ exports.updateAvatar = async (req, res) => {
   }
 };
 
+// ==================== PROTECT MIDDLEWARE ====================
 exports.protect = async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ message: 'Not authorized' });
@@ -207,6 +226,7 @@ exports.protect = async (req, res, next) => {
   }
 };
 
+// ==================== REQUIRE ADMIN ====================
 exports.requireAdmin = (req, res, next) => {
   if (!req.user?.isAdmin) {
     return res.status(403).json({ message: 'Admin access required' });
