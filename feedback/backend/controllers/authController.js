@@ -20,7 +20,7 @@ const generateToken = (user) => {
   );
 };
 
-// Send OTP via Brevo HTTP API v3 (exact official format)
+// Send OTP via Brevo HTTP API v3 (EXACT OFFICIAL FORMAT)
 const sendBrevoEmail = async (to, name, otp) => {
   try {
     const response = await axios.post(
@@ -28,7 +28,7 @@ const sendBrevoEmail = async (to, name, otp) => {
       {
         sender: {
           name: 'CivicVoice',
-          email: process.env.FROM_EMAIL || 'no-reply@civicvoice.et',
+          email: process.env.FROM_EMAIL,  // ← MUST be verified sender from Brevo dashboard
         },
         to: [
           {
@@ -50,10 +50,10 @@ const sendBrevoEmail = async (to, name, otp) => {
       {
         headers: {
           'accept': 'application/json',
-          'api-key': process.env.BREVO_API_KEY,  // ← EXACT FORMAT: 'api-key' header
+          'api-key': process.env.BREVO_API_KEY,  // ← EXACT CASING FROM DOCS
           'content-type': 'application/json',
         },
-        timeout: 10000,
+        timeout: 15000,  // 15 seconds for Render
       }
     );
 
@@ -61,10 +61,10 @@ const sendBrevoEmail = async (to, name, otp) => {
       console.log('BREVO API SUCCESS: OTP sent to', to);
       return true;
     } else {
-      throw new Error(`Brevo API returned ${response.status}: ${response.data}`);
+      throw new Error(`Brevo API returned ${response.status}: ${JSON.stringify(response.data)}`);
     }
   } catch (error) {
-    console.error('BREVO API FAILED:', error.response?.data?.message || error.message);
+    console.error('BREVO API FAILED:', error.response?.data || error.message);
     throw error;
   }
 };
@@ -74,15 +74,12 @@ exports.register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // Check if email already exists
     if (await User.findOne({ email })) {
       return res.status(400).json({ message: 'Email already registered' });
     }
 
-    // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Create user
     const user = new User({
       name,
       email,
@@ -94,12 +91,10 @@ exports.register = async (req, res) => {
 
     await user.save();
 
-    // Send OTP via Brevo HTTP API
     try {
       await sendBrevoEmail(email, name, otp);
     } catch (emailErr) {
       console.error('BREVO EMAIL FAILED (non-blocking):', emailErr.message);
-      // User is still created — email is optional
     }
 
     res.status(201).json({
