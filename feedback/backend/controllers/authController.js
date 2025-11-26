@@ -23,26 +23,22 @@ const generateToken = (user) => {
 };
 
 // ---------------------------
-// FIXED: GMAIL SMTP — PORT 587 (works on Render)
+// SEND OTP EMAIL USING MAILTRAP
 // ---------------------------
 const sendEmail = async (to, name, otp) => {
   try {
     const transporter = nodemailer.createTransport({
-      service: "gmail",
-      host: "smtp.gmail.com",
-      port: 587,           // ✔ REQUIRED on Render
-      secure: false,       // ✔ MUST be false for port 587
+      host: process.env.SMTP_HOST,    // sandbox.smtp.mailtrap.io
+      port: Number(process.env.SMTP_PORT) || 2525,
+      secure: false,                  // false for STARTTLS
       auth: {
-        user: process.env.SMTP_USER, // Gmail
-        pass: process.env.SMTP_PASS, // App Password
+        user: process.env.SMTP_USER,  // Mailtrap username
+        pass: process.env.SMTP_PASS,  // Mailtrap full password
       },
-      tls: {
-        rejectUnauthorized: false,   // ✔ Prevents TLS failures
-      }
     });
 
     await transporter.sendMail({
-      from: `"CivicVoice" <${process.env.SMTP_USER}>`,
+      from: `"CivicVoice" <${process.env.SMTP_FROM}>`,
       to,
       subject: "Your CivicVoice Verification Code",
       html: `
@@ -55,10 +51,9 @@ const sendEmail = async (to, name, otp) => {
       `,
     });
 
-    console.log("📧 OTP sent via Gmail to:", to);
-
+    console.log("📧 OTP sent via Mailtrap to:", to);
   } catch (error) {
-    console.error("❌ GMAIL SMTP ERROR:", error);
+    console.error("❌ MAILTRAP SMTP ERROR:", error);
   }
 };
 
@@ -93,7 +88,7 @@ exports.register = async (req, res) => {
     await sendEmail(email, name, otp);
 
     res.status(201).json({
-      message: "Registration successful! Check your email for the OTP.",
+      message: "Registration successful! Check Mailtrap Inbox for OTP.",
       email,
     });
   } catch (err) {
