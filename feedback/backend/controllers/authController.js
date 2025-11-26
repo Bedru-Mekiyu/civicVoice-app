@@ -4,9 +4,9 @@ const User = require("../models/User");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 
-// ---------------------------
+// ============================
 // JWT TOKEN GENERATOR
-// ---------------------------
+// ============================
 const generateToken = (user) => {
   return jwt.sign(
     {
@@ -22,23 +22,23 @@ const generateToken = (user) => {
   );
 };
 
-// ---------------------------
-// FIXED: MAILTRAP SMTP — WORKS ON RENDER FREE TIER
-// ---------------------------
+// ============================
+// SEND EMAIL USING MAILTRAP
+// ============================
 const sendEmail = async (to, name, otp) => {
   try {
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,       // sandbox.smtp.mailtrap.io
-      port: parseInt(process.env.SMTP_PORT, 10) || 2525, // 2525 works on Render
+      host: process.env.SMTP_HOST || "sandbox.smtp.mailtrap.io",
+      port: parseInt(process.env.SMTP_PORT, 10) || 2525,
       auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
+        user: process.env.MAILTRAP_USER,
+        pass: process.env.MAILTRAP_PASS,
       },
-      tls: { rejectUnauthorized: false }, // prevents TLS errors
+      tls: { rejectUnauthorized: false }, // prevent TLS errors
     });
 
     await transporter.sendMail({
-      from: `"CivicVoice" <${process.env.SMTP_USER}>`,
+      from: `"CivicVoice" <${process.env.FROM_EMAIL || process.env.MAILTRAP_USER}>`,
       to,
       subject: "Your CivicVoice Verification Code",
       html: `
@@ -57,19 +57,22 @@ const sendEmail = async (to, name, otp) => {
   }
 };
 
-// ---------------------------
-// REGISTER USER + SEND OTP (NON-BLOCKING)
-// ---------------------------
+// ============================
+// REGISTER USER + SEND OTP
+// ============================
 exports.register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
+    // Check if email exists
     if (await User.findOne({ email })) {
       return res.status(400).json({ message: "Email already registered" });
     }
 
+    // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
+    // Create user
     const user = new User({
       name,
       email,
@@ -81,8 +84,8 @@ exports.register = async (req, res) => {
 
     await user.save();
 
-    // 🔹 Send email asynchronously so API responds immediately
-    sendEmail(email, name, otp).catch(err => console.error('Email sending failed:', err));
+    // Send OTP asynchronously
+    sendEmail(email, name, otp).catch(err => console.error("Email sending failed:", err));
 
     res.status(201).json({
       message: "Registration successful! Check your email for the OTP.",
@@ -94,15 +97,14 @@ exports.register = async (req, res) => {
   }
 };
 
-// ---------------------------
+// ============================
 // VERIFY OTP
-// ---------------------------
+// ============================
 exports.verifyOTP = async (req, res) => {
   try {
     const { email, otp } = req.body;
 
     const user = await User.findOne({ email });
-
     if (!user) return res.status(400).json({ message: "User not found" });
     if (user.otp !== otp) return res.status(400).json({ message: "Invalid OTP" });
 
@@ -123,23 +125,20 @@ exports.verifyOTP = async (req, res) => {
   }
 };
 
-// ---------------------------
+// ============================
 // SIGN IN
-// ---------------------------
+// ============================
 exports.signIn = async (req, res) => {
   try {
     const { email, password } = req.body;
 
     const user = await User.findOne({ email }).select("+password");
-
     if (!user) return res.status(400).json({ message: "Invalid credentials" });
 
     const match = await user.comparePassword(password);
     if (!match) return res.status(400).json({ message: "Invalid credentials" });
 
-    if (!user.isVerified) {
-      return res.status(403).json({ message: "Account not verified" });
-    }
+    if (!user.isVerified) return res.status(403).json({ message: "Account not verified" });
 
     const token = generateToken(user);
 
@@ -154,9 +153,9 @@ exports.signIn = async (req, res) => {
   }
 };
 
-// ---------------------------
+// ============================
 // PROTECT ROUTES
-// ---------------------------
+// ============================
 exports.protect = async (req, res, next) => {
   try {
     let token = req.headers.authorization?.split(" ")[1];
@@ -173,28 +172,27 @@ exports.protect = async (req, res, next) => {
   }
 };
 
-// ---------------------------
+// ============================
 // REQUIRE ADMIN
-// ---------------------------
+// ============================
 exports.requireAdmin = (req, res, next) => {
   if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
   next();
 };
 
-// ---------------------------
+// ============================
 // GET MY PROFILE
-// ---------------------------
+// ============================
 exports.getMe = async (req, res) => {
   res.json(req.user);
 };
 
-// ---------------------------
+// ============================
 // UPDATE AVATAR
-// ---------------------------
+// ============================
 exports.updateAvatar = async (req, res) => {
   try {
     const { avatar } = req.body;
-
     const user = await User.findById(req.user._id);
     user.avatar = avatar;
     await user.save();
@@ -205,9 +203,9 @@ exports.updateAvatar = async (req, res) => {
   }
 };
 
-// ---------------------------
+// ============================
 // LOGOUT
-// ---------------------------
+// ============================
 exports.logout = (req, res) => {
   res.json({ message: "Logged out" });
 };
