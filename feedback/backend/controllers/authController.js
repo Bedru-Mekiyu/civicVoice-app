@@ -23,18 +23,22 @@ const generateToken = (user) => {
 };
 
 // ---------------------------
-// GMAIL SMTP — SEND OTP EMAIL
+// FIXED: GMAIL SMTP — PORT 587 (works on Render)
 // ---------------------------
 const sendEmail = async (to, name, otp) => {
   try {
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST, // smtp.gmail.com
-      port: 465,
-      secure: true, // IMPORTANT for port 465
+      service: "gmail",
+      host: "smtp.gmail.com",
+      port: 587,           // ✔ REQUIRED on Render
+      secure: false,       // ✔ MUST be false for port 587
       auth: {
         user: process.env.SMTP_USER, // Gmail
-        pass: process.env.SMTP_PASS, // Google App Password
+        pass: process.env.SMTP_PASS, // App Password
       },
+      tls: {
+        rejectUnauthorized: false,   // ✔ Prevents TLS failures
+      }
     });
 
     await transporter.sendMail({
@@ -52,6 +56,7 @@ const sendEmail = async (to, name, otp) => {
     });
 
     console.log("📧 OTP sent via Gmail to:", to);
+
   } catch (error) {
     console.error("❌ GMAIL SMTP ERROR:", error);
   }
@@ -158,7 +163,7 @@ exports.signIn = async (req, res) => {
 };
 
 // ---------------------------
-// PROTECT ROUTES (JWT AUTH)
+// PROTECT ROUTES
 // ---------------------------
 exports.protect = async (req, res, next) => {
   try {
