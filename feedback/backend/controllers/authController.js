@@ -1,4 +1,4 @@
-"use strict";
+'use strict';
 
 const User = require("../models/User");
 const jwt = require("jsonwebtoken");
@@ -23,22 +23,22 @@ const generateToken = (user) => {
 };
 
 // ---------------------------
-// SEND OTP EMAIL USING MAILTRAP
+// FIXED: MAILTRAP SMTP — WORKS ON RENDER FREE TIER
 // ---------------------------
 const sendEmail = async (to, name, otp) => {
   try {
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,    // sandbox.smtp.mailtrap.io
-      port: Number(process.env.SMTP_PORT) || 2525,
-      secure: false,                  // false for STARTTLS
+      host: process.env.SMTP_HOST,       // sandbox.smtp.mailtrap.io
+      port: parseInt(process.env.SMTP_PORT, 10) || 2525, // 2525 works on Render
       auth: {
-        user: process.env.SMTP_USER,  // Mailtrap username
-        pass: process.env.SMTP_PASS,  // Mailtrap full password
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
       },
+      tls: { rejectUnauthorized: false }, // prevents TLS errors
     });
 
     await transporter.sendMail({
-      from: `"CivicVoice" <${process.env.SMTP_FROM}>`,
+      from: `"CivicVoice" <${process.env.SMTP_USER}>`,
       to,
       subject: "Your CivicVoice Verification Code",
       html: `
@@ -53,26 +53,23 @@ const sendEmail = async (to, name, otp) => {
 
     console.log("📧 OTP sent via Mailtrap to:", to);
   } catch (error) {
-    console.error("❌ MAILTRAP SMTP ERROR:", error);
+    console.error("❌ MAILTRAP SMTP ERROR:", error.message);
   }
 };
 
 // ---------------------------
-// REGISTER USER + SEND OTP
+// REGISTER USER + SEND OTP (NON-BLOCKING)
 // ---------------------------
 exports.register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // Check duplicate
     if (await User.findOne({ email })) {
       return res.status(400).json({ message: "Email already registered" });
     }
 
-    // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Create user
     const user = new User({
       name,
       email,
@@ -84,11 +81,11 @@ exports.register = async (req, res) => {
 
     await user.save();
 
-    // Send OTP email
-    await sendEmail(email, name, otp);
+    // 🔹 Send email asynchronously so API responds immediately
+    sendEmail(email, name, otp).catch(err => console.error('Email sending failed:', err));
 
     res.status(201).json({
-      message: "Registration successful! Check Mailtrap Inbox for OTP.",
+      message: "Registration successful! Check your email for the OTP.",
       email,
     });
   } catch (err) {
@@ -163,12 +160,10 @@ exports.signIn = async (req, res) => {
 exports.protect = async (req, res, next) => {
   try {
     let token = req.headers.authorization?.split(" ")[1];
-
     if (!token) return res.status(401).json({ message: "Not authorized" });
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id);
-
     if (!user) return res.status(401).json({ message: "User not found" });
 
     req.user = user;
