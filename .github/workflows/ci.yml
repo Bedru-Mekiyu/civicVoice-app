@@ -1,0 +1,40 @@
+name: CI Workflow
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  backend-lint:
+    name: Backend Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: feedback/backend/package-lock.json
+      - name: Install dependencies
+        run: cd feedback/backend && npm ci
+      - name: Lint
+        run: cd feedback/backend && npm run lint
+
+  frontend-check:
+    name: Frontend Lint & Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: feedback/frontend/package-lock.json
+      - name: Install dependencies
+        run: cd feedback/frontend && npm ci
+      - name: Lint
+        run: cd feedback/frontend && npm run lint
+      - name: Build
+        run: cd feedback/frontend && npm run build
