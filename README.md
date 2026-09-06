@@ -281,7 +281,7 @@ Citizens lack accessible, structured channels to provide feedback on government 
               └─────────────────────────────────┘
 ```
 
-> **Note**: Three middleware files (`authMiddleware.js`, `roleMiddleware.js`, `errorMiddleware.js`) exist but are empty. Auth and role logic is implemented inline in `authController.js`. Two model files (`Institution.js`, `sectors.js`) also exist but are empty — these are placeholders for future features.
+> **Note**: Middleware modules (`authMiddleware.js`, `roleMiddleware.js`, `errorMiddleware.js`) and model placeholders (`Institution.js`, `sectors.js`) provide baseline modular exports and schemas for ongoing extension.
 
 ---
 
@@ -771,7 +771,7 @@ The frontend was initially scaffolded via [Lovable](https://lovable.dev/projects
 - **Vercel**: Connect Git repository → Build: `npm run build` → Output: `dist/`
 - **Lovable**: Project settings → Share → Publish
 
-> **Note**: No Docker configuration, CI/CD pipeline, or Kubernetes manifests exist in this repository.
+> **Note**: Automated CI workflows are configured via GitHub Actions in `.github/workflows/ci.yml` to lint backend services and validate frontend builds on every push and pull request.
 
 ---
 

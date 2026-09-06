@@ -591,7 +591,6 @@ const translations = {
     'common.next': 'ቀጣይ',
     'common.previous': 'ያለፈው',
     'common.submit': 'አስገባ',
-    'common.or': 'ወይም',
     'common.show_password': 'የይለፍ ቃል አሳይ',
     'common.hide_password': 'የይለፍ ቃል ደብቅ',
   },
