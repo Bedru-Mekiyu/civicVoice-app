@@ -629,7 +629,7 @@ ADMIN_PASSWORD=your-admin-password
 ADMIN_NAME=Administrator
 ```
 
-> ⚠️ **Security Notice**: The `server.js` currently contains a hardcoded fallback MongoDB URI with credentials (line 49–50). This must be removed before production use. Rely exclusively on the `MONGODB_URI` environment variable.
+> 🔒 **Security Notice**: Database connectivity strictly requires the `MONGODB_URI` environment variable. Never hardcode credentials in source control.
 
 ### Frontend (`feedback/frontend/.env`)
 
